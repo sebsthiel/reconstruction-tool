@@ -45,7 +45,10 @@ def is_relevant(module_name):
     if "test" in module_name or "test" in module_name:
         return False
     
-    return True
+    if module_name.startswith("zeeguu"):
+        return True
+    
+    return False
 
 
 def top_level_module(module_name, depth=1):
@@ -55,17 +58,19 @@ def top_level_module(module_name, depth=1):
 
 def show_graph(graph, size, **args):
     from bokeh.models import (BoxSelectTool, HoverTool, MultiLine,
-                          NodesAndLinkedEdges, Plot, Range1d, Scatter, TapTool)
+                          NodesAndLinkedEdges, Plot, Range1d, Scatter, TapTool,ColumnDataSource, LabelSet)
     from bokeh.palettes import Spectral4
     from bokeh.plotting import from_networkx, show
+    
 
     # nx.draw(graph, with_labels=True, **args)
 
     plot = Plot(width=size[0], height=size[1], x_range=Range1d(-1.1, 1.1), y_range=Range1d(-1.1, 1.1))
     plot.title.text = "Dependency Graph"
 
-    plot.add_tools(HoverTool(tooltips=None), TapTool(), BoxSelectTool()) #TODO add module name
+    plot.add_tools(HoverTool(tooltips=None), TapTool(), BoxSelectTool())
 
+    # graph_renderer = from_networkx(graph, nx.spring_layout, scale=1, center=(0, 0))
     graph_renderer = from_networkx(graph, nx.spring_layout, scale=1, center=(0, 0))
 
     scatter_glyph = Scatter(size=15, fill_color=Spectral4[0])
@@ -82,6 +87,18 @@ def show_graph(graph, size, **args):
     graph_renderer.inspection_policy = NodesAndLinkedEdges()
 
     plot.renderers.append(graph_renderer)
+
+    x, y = zip(*graph_renderer.layout_provider.graph_layout.values())
+    
+    node_names = list(graph.nodes())
+    
+    label_source = ColumnDataSource(data=dict(
+        x=x,
+        y=y,
+        text=node_names
+    ))
+    labels = LabelSet(x='x', y='y', text='text', source=label_source, text_font_size="12pt", text_align="center", y_offset=10, text_font_style="bold")
+    plot.renderers.append(labels)
 
     show(plot)
 
@@ -136,5 +153,5 @@ def get_abstracted_graph(graph, depth=1):
 
 
 graph = create_graph()
-abstracted_graph = get_abstracted_graph(graph, depth=1)
+abstracted_graph = get_abstracted_graph(graph, depth=2)
 show_graph(abstracted_graph, size=(1000, 1000))
