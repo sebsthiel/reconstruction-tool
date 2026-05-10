@@ -71,7 +71,7 @@ def show_graph(graph, size, **args):
     plot.add_tools(HoverTool(tooltips=None), TapTool(), BoxSelectTool())
 
     # graph_renderer = from_networkx(graph, nx.spring_layout, scale=1, center=(0, 0))
-    graph_renderer = from_networkx(graph, nx.spring_layout, scale=1, center=(0, 0))
+    graph_renderer = from_networkx(graph, nx.spring_layout, scale=1, center=(0, 0), seed=42, method="energy", gravity=10)
 
     scatter_glyph = Scatter(size=15, fill_color=Spectral4[0])
     graph_renderer.node_renderer.glyph = scatter_glyph
