@@ -1,8 +1,8 @@
 import ast
 from pathlib import Path
 import sys
-import os
 import networkx as nx
+import matplotlib.pyplot as plt
 
 ROOT_FOLDER = ""
 
@@ -35,11 +35,12 @@ def extract_imports_from_file(file_path):
 
 
 def module_name_from_file_path(full_file_path):
-    file_name = full_file_path[len(ROOT_FOLDER) :]
+    file_name = full_file_path[len(ROOT_FOLDER):]
     file_name = file_name.replace("/__init__.py", "")
     file_name = file_name.replace("/", ".")
     file_name = file_name.replace(".py", "")
     return file_name
+
 
 def is_relevant(module_name):
     if "test" in module_name or "test" in module_name:
@@ -56,102 +57,66 @@ def top_level_module(module_name, depth=1):
     return ".".join(components[:depth])
 
 
-def show_graph(graph, size, **args):
-    from bokeh.models import (BoxSelectTool, HoverTool, MultiLine,
-                          NodesAndLinkedEdges, Plot, Range1d, Scatter, TapTool,ColumnDataSource, LabelSet)
-    from bokeh.palettes import Spectral4
-    from bokeh.plotting import from_networkx, show
-    
-
-    # nx.draw(graph, with_labels=True, **args)
-
-    plot = Plot(width=size[0], height=size[1], x_range=Range1d(-1.1, 1.1), y_range=Range1d(-1.1, 1.1))
-    plot.title.text = "Dependency Graph"
-
-    plot.add_tools(HoverTool(tooltips=None), TapTool(), BoxSelectTool())
-
-    # graph_renderer = from_networkx(graph, nx.spring_layout, scale=1, center=(0, 0))
-    graph_renderer = from_networkx(graph, nx.spring_layout, scale=1, center=(0, 0), seed=42, method="energy", gravity=10)
-
-    scatter_glyph = Scatter(size=15, fill_color=Spectral4[0])
-    graph_renderer.node_renderer.glyph = scatter_glyph
-    graph_renderer.node_renderer.selection_glyph = scatter_glyph.clone(fill_color=Spectral4[2])
-    graph_renderer.node_renderer.hover_glyph = scatter_glyph.clone(fill_color=Spectral4[1])
-
-    ml_glyph = MultiLine(line_color="#CCCCCC", line_alpha=0.8, line_width=5)
-    graph_renderer.edge_renderer.glyph = ml_glyph
-    graph_renderer.edge_renderer.selection_glyph = ml_glyph.clone(line_color=Spectral4[2], line_alpha=1)
-    graph_renderer.edge_renderer.hover_glyph = ml_glyph.clone(line_color=Spectral4[1], line_width=1)
-
-    graph_renderer.selection_policy = NodesAndLinkedEdges()
-    graph_renderer.inspection_policy = NodesAndLinkedEdges()
-
-    plot.renderers.append(graph_renderer)
-
-    x, y = zip(*graph_renderer.layout_provider.graph_layout.values())
-    
-    node_names = list(graph.nodes())
-    
-    label_source = ColumnDataSource(data=dict(
-        x=x,
-        y=y,
-        text=node_names
-    ))
-    labels = LabelSet(x='x', y='y', text='text', source=label_source, text_font_size="12pt", text_align="center", y_offset=10, text_font_style="bold")
-    plot.renderers.append(labels)
-
-    show(plot)
-
-# MAIN
-if len(sys.argv) <= 1:
-    print("No file specified")
-    exit(1)
-
-print(f"Extracting imports")
-ROOT_FOLDER = sys.argv[1]
-
-# Create a network graph
 def create_graph():
     graph = nx.DiGraph()
 
-    # Find all .py files in the specified path and extract imports
     for file in Path(ROOT_FOLDER).rglob("*.py"):
-
         file_path = str(file)
         source_module = module_name_from_file_path(file_path)
 
         if not is_relevant(source_module):
             continue
 
-        if source_module not in graph.nodes:
-            graph.add_node(source_module)
-        
-        
-        for used_module in extract_imports_from_file(file_path):
-            if used_module not in graph.nodes:
-                graph.add_node(used_module)
+        graph.add_node(source_module)
 
+        for used_module in extract_imports_from_file(file_path):
             if is_relevant(used_module):
                 graph.add_edge(source_module, used_module)
 
     return graph
 
+
 def get_abstracted_graph(graph, depth=1):
     abstracted_graph = nx.DiGraph()
-    for edge in graph.edges:
-        source = top_level_module(edge[0], depth)
-        target = top_level_module(edge[1], depth)
-        if source != target:
-            abstracted_graph.add_edge(source, target)
-
-    # for node in graph.nodes:
-    #     top_node = top_level_module(node, depth)
-    #     if top_node not in abstracted_graph.nodes:
-    #         abstracted_graph.add_node(top_node)
-
+    for source, target in graph.edges:
+        abs_source = top_level_module(source, depth)
+        abs_target = top_level_module(target, depth)
+        if abs_source != abs_target:
+            abstracted_graph.add_edge(abs_source, abs_target)
     return abstracted_graph
 
 
+def show_graph(graph):
+    pos = nx.spring_layout(graph, seed=42)
+
+    plt.figure(figsize=(14, 14))
+    nx.draw_networkx(
+        graph,
+        pos,
+        with_labels=True,
+        node_color="#4C72B0",
+        font_color="black",
+        font_size=8,
+        font_weight="bold",
+        node_size=1500,
+        edge_color="#AAAAAA",
+        arrows=True,
+        arrowsize=15,
+    )
+    plt.title("Dependency Graph", fontsize=14)
+    plt.axis("off")
+    plt.tight_layout()
+    plt.show()
+
+
+# MAIN
+if len(sys.argv) <= 1:
+    print("No folder specified")
+    exit(1)
+
+ROOT_FOLDER = sys.argv[1]
+print(f"Extracting imports from: {ROOT_FOLDER}")
+
 graph = create_graph()
 abstracted_graph = get_abstracted_graph(graph, depth=2)
-show_graph(abstracted_graph, size=(1000, 1000))
+show_graph(abstracted_graph)
