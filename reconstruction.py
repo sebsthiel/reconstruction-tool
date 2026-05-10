@@ -86,8 +86,8 @@ def get_abstracted_graph(graph, depth=1):
     return abstracted_graph
 
 
-def show_graph(graph):
-    pos = nx.spring_layout(graph, seed=42)
+def show_graph(graph):    
+    pos = nx.nx_agraph.graphviz_layout(graph, prog="dot")
 
     plt.figure(figsize=(14, 14))
     nx.draw_networkx(
@@ -102,6 +102,7 @@ def show_graph(graph):
         edge_color="#AAAAAA",
         arrows=True,
         arrowsize=15,
+        connectionstyle="arc3,rad=0.1",  # curves edges so bidirectional pairs don't overlap
     )
     plt.title("Dependency Graph", fontsize=14)
     plt.axis("off")
