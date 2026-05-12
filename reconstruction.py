@@ -8,7 +8,7 @@ from collections import defaultdict
 from pydriller import Repository
 
 ROOT_FOLDER = ""
-DEPTH = 3
+DEPTH = 2
 
 
 def extract_imports(source):
@@ -54,7 +54,7 @@ def is_relevant(module_name):
     return False
 
 
-def top_level_module(module_name, depth=1):
+def top_level_module(module_name, depth=2):
     components = module_name.split(".")
     return ".".join(components[:depth])
 
