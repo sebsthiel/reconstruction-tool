@@ -8,10 +8,12 @@ from collections import defaultdict
 from pydriller import Repository
 
 ROOT_FOLDER = ""
-DEPTH = 1
-ENABLE_CHURN = True
+DEPTH = 2
+ENABLE_CHURN = False
 SHOW_EXTERNAL_DEPENDENCIES = False
-MODULE_PREFIX_FILTER = ""
+MODULE_PREFIX_FILTER = "zeeguu"  
+MODULE_EXCLUDE = "model"  
+TOP_N_BY_CHURN = None  # Set to an integer (e.g., 10) to show only top N nodes by churn, or None to show all
 
 
 def extract_imports(source, package=""):
@@ -62,6 +64,8 @@ def is_relevant(module_name):
     if "test" in module_name:
         return False
     
+    if MODULE_EXCLUDE != "" and MODULE_EXCLUDE in module_name:
+        return False
 
     if MODULE_PREFIX_FILTER == "" or module_name.startswith(MODULE_PREFIX_FILTER):
         return True
@@ -182,6 +186,27 @@ def get_abstracted_graph(graph, internal_modules=set(), depth=1):
 
 
 def show_graph(graph, churn):
+    # Filter graph to top N by churn if requested
+    if TOP_N_BY_CHURN is not None and TOP_N_BY_CHURN > 0:
+        sorted_nodes = sorted(graph.nodes(), key=lambda n: churn.get(n, 0), reverse=True)
+        top_nodes = set(sorted_nodes[:TOP_N_BY_CHURN])
+        graph = graph.subgraph(top_nodes).copy()
+        print(f"Filtered to top {TOP_N_BY_CHURN} nodes by churn")
+    
+    # Compute title from relative path within git repository
+    git_root = find_git_root(ROOT_FOLDER)
+    if git_root:
+        rel_path = Path(ROOT_FOLDER).relative_to(git_root)
+        title = f"Dependency Graph ({rel_path if rel_path != Path('.') else Path(ROOT_FOLDER).parts[-1]})"
+    else:
+        # Fallback to last 2 path components if no git root found
+        folder_path = Path(ROOT_FOLDER)
+        title_parts = folder_path.parts[-2:] if len(folder_path.parts) >= 2 else folder_path.parts
+        title = f"Dependency Graph ({'/'.join(title_parts)})"
+
+    if MODULE_PREFIX_FILTER:
+        title += f" showing {MODULE_PREFIX_FILTER}.*"
+    
     pos = nx.nx_agraph.graphviz_layout(graph, prog="dot")
 
     # Node size scaled by total file size
@@ -215,7 +240,7 @@ def show_graph(graph, churn):
     )
 
     # Remove "zeeguu." prefix for labels
-    labels = {node: node.removeprefix("zeeguu.") for node in graph.nodes}
+    labels = {node: node.removeprefix(f"{MODULE_PREFIX_FILTER}.") for node in graph.nodes}
     # Draw labels below each node, offset proportional to node radius
     label_pos = {
         node: (x, y - 0.35 * (node_sizes[i] ** 0.5))
@@ -234,7 +259,7 @@ def show_graph(graph, churn):
     sm = plt.cm.ScalarMappable(cmap=colormap, norm=mcolors.Normalize(vmin=0, vmax=max_churn))
     plt.colorbar(sm, ax=plt.gca(), label="Churn (commits)", shrink=0.5)
 
-    plt.title("Dependency Graph (zeeguu.*)", fontsize=14)
+    plt.title(title, fontsize=14)
     plt.axis("off")
     plt.tight_layout()
     plt.show()
