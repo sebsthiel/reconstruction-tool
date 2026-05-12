@@ -9,9 +9,10 @@ from pydriller import Repository
 
 ROOT_FOLDER = ""
 DEPTH = 2
+ENABLE_CHURN = True
 
 
-def extract_imports(source):
+def extract_imports(source, package=""):
     tree = ast.parse(source)
     imports = []
     for node in ast.walk(tree):
@@ -19,17 +20,23 @@ def extract_imports(source):
             for alias in node.names:
                 imports.append(alias.name)
         elif isinstance(node, ast.ImportFrom):
-            module = node.module or ""
+            if node.level > 0 and package:  # relative import
+                base_parts = package.split(".")[:len(package.split(".")) - (node.level - 1)]
+                base = ".".join(base_parts)
+                module = f"{base}.{node.module}" if node.module else base
+            else:
+                module = node.module or ""
             for alias in node.names:
                 imports.append(f"{module}.{alias.name}" if module else alias.name)
     return imports
 
 
-def extract_imports_from_file(file_path):
+def extract_imports_from_file(file_path, source_module=""):
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             source_code = f.read()
-        return extract_imports(source_code)
+        package = source_module if file_path.endswith("__init__.py") else ".".join(source_module.split(".")[:-1])
+        return extract_imports(source_code, package)
     except SyntaxError as e:
         print(f"Warning: Syntax error in {file_path}: {e}")
         return []
@@ -89,7 +96,7 @@ def create_graph():
         graph.add_node(source_module)
         module_loc[source_module] = file.stat().st_size
 
-        for used_module in extract_imports_from_file(file_path):
+        for used_module in extract_imports_from_file(file_path, source_module):
             if is_relevant(used_module):
                 graph.add_edge(source_module, used_module)
 
@@ -143,11 +150,8 @@ def show_graph(graph, churn):
     nx.draw_networkx(
         graph,
         pos,
-        with_labels=True,
+        with_labels=False,           # <-- changed
         node_color=node_colors,
-        font_color="black",
-        font_size=8,
-        font_weight="bold",
         node_size=node_sizes,
         edge_color="#AAAAAA",
         width=edge_widths,
@@ -156,11 +160,27 @@ def show_graph(graph, churn):
         connectionstyle="arc3,rad=0.1",
     )
 
+    # Remove "zeeguu." prefix for labels
+    labels = {node: node.removeprefix("zeeguu.") for node in graph.nodes}
+    # Draw labels below each node, offset proportional to node radius
+    label_pos = {
+        node: (x, y - 0.35 * (node_sizes[i] ** 0.5))
+        for i, (node, (x, y)) in enumerate(pos.items())
+    }
+    nx.draw_networkx_labels(
+        graph,
+        label_pos,
+        labels=labels,
+        font_color="black",
+        font_size=8,
+        font_weight="bold",
+    )
+
     # Colorbar legend
     sm = plt.cm.ScalarMappable(cmap=colormap, norm=mcolors.Normalize(vmin=0, vmax=max_churn))
     plt.colorbar(sm, ax=plt.gca(), label="Churn (commits)", shrink=0.5)
 
-    plt.title("Dependency Graph", fontsize=14)
+    plt.title("Dependency Graph (zeeguu.*)", fontsize=14)
     plt.axis("off")
     plt.tight_layout()
     plt.show()
@@ -177,5 +197,5 @@ print(f"Extracting imports from: {ROOT_FOLDER}")
 
 graph = create_graph()
 abstracted_graph = get_abstracted_graph(graph, depth=DEPTH)
-churn = calculate_churn(depth=DEPTH)
+churn = calculate_churn(depth=DEPTH) if ENABLE_CHURN else {}
 show_graph(abstracted_graph, churn)
