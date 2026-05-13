@@ -9,10 +9,10 @@ from pydriller import Repository
 
 ROOT_FOLDER = ""
 DEPTH = 2
-ENABLE_CHURN = False
+ENABLE_CHURN = True
 SHOW_EXTERNAL_DEPENDENCIES = False
-MODULE_PREFIX_FILTER = "zeeguu"  
-MODULE_EXCLUDE = "model"  
+MODULE_PREFIX_FILTER = ""  
+MODULE_EXCLUDE = ""  
 TOP_N_BY_CHURN = None  # Set to an integer (e.g., 10) to show only top N nodes by churn, or None to show all
 
 
@@ -205,7 +205,7 @@ def show_graph(graph, churn):
         title = f"Dependency Graph ({'/'.join(title_parts)})"
 
     if MODULE_PREFIX_FILTER:
-        title += f" showing {MODULE_PREFIX_FILTER}.*"
+        title += f" - Showing {MODULE_PREFIX_FILTER}*"
     
     pos = nx.nx_agraph.graphviz_layout(graph, prog="dot")
 
@@ -223,13 +223,13 @@ def show_graph(graph, churn):
     # Edge width scaled by number of distinct low-level dependencies
     weights = [graph.edges[e].get("dependency_count", 1) for e in graph.edges]
     max_weight = max(weights) if weights else 1
-    edge_widths = [0.5 + 5 * (w / max_weight) for w in weights]
+    edge_widths = [0.5 + 10 * (w / max_weight) for w in weights]
 
     plt.figure(figsize=(18, 18))
     nx.draw_networkx(
         graph,
         pos,
-        with_labels=False,           # <-- changed
+        with_labels=False,
         node_color=node_colors,
         node_size=node_sizes,
         edge_color="#AAAAAA",
@@ -240,7 +240,7 @@ def show_graph(graph, churn):
     )
 
     # Remove "zeeguu." prefix for labels
-    labels = {node: node.removeprefix(f"{MODULE_PREFIX_FILTER}.") for node in graph.nodes}
+    labels = {node: node.removeprefix(f"{MODULE_PREFIX_FILTER}") for node in graph.nodes}
     # Draw labels below each node, offset proportional to node radius
     label_pos = {
         node: (x, y - 0.35 * (node_sizes[i] ** 0.5))
@@ -251,7 +251,7 @@ def show_graph(graph, churn):
         label_pos,
         labels=labels,
         font_color="black",
-        font_size=8,
+        font_size=11,
         font_weight="bold",
     )
 
